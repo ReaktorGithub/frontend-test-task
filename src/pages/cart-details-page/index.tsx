@@ -28,8 +28,12 @@ const CartDetailsPage = () => {
   const [productsDraft, setProductsDraft] = useState<EditableProduct[] | null>(null);
 
   const products = useMemo<EditableProduct[]>(() => {
-    if (productsDraft) return productsDraft;
-    if (!data?.products) return [];
+    if (productsDraft) {
+      return productsDraft;
+    }
+    if (!data?.products) {
+      return [];
+    }
     return data.products.map((p) => ({ ...p }));
   }, [data?.products, productsDraft]);
 

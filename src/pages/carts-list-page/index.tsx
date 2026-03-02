@@ -27,11 +27,13 @@ const CartsListPage = () => {
   const { data, isLoading, isError, error, isFetching } = useCartsListQuery({ limit, skip });
 
   const filteredCarts = useMemo(() => {
-    if (!data?.carts) return [];
-    if (!userIdFilter.trim()) return data.carts;
-    const numericFilter = Number(userIdFilter);
-    if (Number.isNaN(numericFilter)) return data.carts;
-    return data.carts.filter((cart) => cart.userId === numericFilter);
+    if (!data?.carts) {
+      return [];
+    }
+    if (!userIdFilter.trim()) {
+      return data.carts;
+    }
+    return data.carts.filter((cart) => String(cart.userId).includes(userIdFilter));
   }, [data?.carts, userIdFilter]);
 
   const totalItems = data?.total ?? 0;
@@ -88,7 +90,7 @@ const CartsListPage = () => {
           ) : (
             <>
               <Table>
-                <TableHead>
+                <thead>
                   <TableRow>
                     <TableHead>ID</TableHead>
                     <TableHead>User ID</TableHead>
@@ -96,7 +98,7 @@ const CartsListPage = () => {
                     <TableHead>Total</TableHead>
                     <TableHead />
                   </TableRow>
-                </TableHead>
+                </thead>
                 <tbody>
                   {filteredCarts.map((cart) => (
                     <TableRow key={cart.id}>
