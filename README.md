@@ -1,73 +1,106 @@
-# React + TypeScript + Vite
+## Dummy Carts SPA
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+SPA-приложение для работы с корзинами пользователей на основе публичного API DummyJSON.
 
-Currently, two official plugins are available:
+Используемый стек:
+- **React + Vite + TypeScript**
+- **@tanstack/react-query**
+- **Zustand**
+- **@emotion/styled / @emotion/react**
+- **react-router-dom**
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+### Запуск проекта
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+yarn
+yarn dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+По умолчанию приложение будет доступно по адресу `http://localhost:5173`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Скрипты:
+- **yarn dev**: запуск dev-сервера Vite
+- **yarn build**: production-сборка
+- **yarn preview**: предпросмотр собранного приложения
+- **yarn lint**: запуск ESLint
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
+
+### Архитектура
+
+Основные директории:
+
+- **src/api**
+  - `carts.ts` — типы корзин и продуктов, функции для работы с API DummyJSON (`fetchCarts`, `fetchCart`, `updateCart`).
+
+- **src/queries**
+  - `carts.tsx` — обёртки над API в виде хуков React Query:
+    - `useCartsListQuery` — загрузка списка корзин с параметрами `limit`/`skip`;
+    - `useCartQuery` — загрузка одной корзины;
+    - `useUpdateCartMutation` — обновление корзины (PUT) с инвалидацией списка и обновлением кэша деталей.
+
+- **src/store**
+  - `cartsPaginationStore.ts` — Zustand-хранилище для глобального состояния списка корзин:
+    - `page` — текущая страница;
+    - `limit` — размер страницы;
+    - `userIdFilter` — опциональный фильтр по `userId`;
+    - экшены `setPage`, `setLimit`, `setUserIdFilter`.
+  - Состояние живёт между переходами по роутам, поэтому при возврате со страницы деталей список и текущая пагинация сохраняются.
+
+- **src/components**
+  - `layout.tsx` — базовые layout-компоненты (страница, карточка, заголовки) на основе `@emotion/styled`.
+  - `controls.tsx` — общие контролы (`Button`, `Input`, `Select`) с обработанными состояниями `hover`, `disabled`, `loading` (через пропсы и стили).
+  - `table.tsx` — таблица для отображения списков (th/td/tr).
+
+- **src/screens**
+  - `CartsListPage.tsx` — страница списка корзин:
+    - Использует `useCartsPaginationStore` для чтения/изменения `page`, `limit`, `userIdFilter`;
+    - Вызывает `useCartsListQuery({ limit, skip })`, где `skip = (page - 1) * limit`;
+    - Реализованы:
+      - вывод списка корзин (ID, `userId`, количество товаров, общая сумма);
+      - пагинация (кнопки «Previous» / «Next» с корректной блокировкой на границах);
+      - фильтр по `userId` (выполняется на клиенте);
+      - состояния загрузки (`isLoading`), ошибки (`isError`) и фоновое обновление (`isFetching`);
+      - переход в детали корзины через `react-router-dom`.
+  - `CartDetailsPage.tsx` — детальная страница корзины:
+    - Роут: `/carts/:id` (см. `routes.tsx`);
+    - Загружает данные через `useCartQuery`;
+    - Локально хранит редактируемый список товаров (`productsDraft`) с поддержкой:
+      - изменения количества;
+      - «удаления» товара (флаг `removed`, количество 0);
+      - пересчёта итогов по товару и корзине;
+      - кнопки `Reset` для отката к данным из API;
+    - Кнопка `Save changes`:
+      - собирает продукты с количеством `> 0` и без флага `removed`;
+      - отправляет `updateCart` с `merge: false`;
+      - после успешного обновления:
+        - обновляет кэш деталей корзины;
+        - инвалидирует список корзин (чтобы суммы в списке были актуальными).
+    - Отображает:
+      - состояния загрузки/ошибки;
+      - успешное сохранение/ошибку обновления;
+      - актуальные итоги по корзине (количество товаров, суммарная стоимость).
+
+- **src/routes.tsx**
+  - Конфигурация `createBrowserRouter`:
+    - `/` → `CartsListPage`
+    - `/carts/:id` → `CartDetailsPage`
+  - Компонент `App` выступает как layout и рендерит `Outlet`.
+
+- **src/main.tsx**
+  - Точка входа:
+    - создаёт `QueryClient` и оборачивает приложение в `QueryClientProvider`;
+    - монтирует `RouterProvider` с определёнными роутами.
+
+---
+
+### Навигация и поведение
+
+- При переходе со списка корзин в детали и обратно:
+  - сохраняются выбранная страница, `limit` и фильтр по `userId` (через Zustand);
+  - используется кэш React Query, поэтому повторные заходы в те же корзины загружаются быстрее.
+- Интерфейс остаётся отзывчивым:
+  - кнопки переключения страниц и сохранения корзины имеют состояния `disabled`/`loading`;
+  - при фоновой перезагрузке данных отображается лёгкий статус (`Refreshing…`), без резких скачков верстки.
